@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_small_container"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="@drawable/widget_background_small"
+    android:gravity="center">
+
+    <!-- Icon -->
+    <TextView
+        android:id="@+id/widget_small_icon"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="⏱️"
+        android:textSize="32sp"
+        android:gravity="center" />
+
+    <!-- Days Count -->
+    <TextView
+        android:id="@+id/widget_small_days"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="00"
+        android:textSize="36sp"
+        android:textStyle="bold"
+        android:textColor="#6750A4"
+        android:layout_marginTop="4dp" />
+
+    <!-- Label -->
+    <TextView
+        android:id="@+id/widget_small_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="days"
+        android:textSize="14sp"
+        android:textColor="#79747E" />
+
+</LinearLayout>
+

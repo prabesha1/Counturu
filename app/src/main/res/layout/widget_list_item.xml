@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_list_item_container"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="12dp"
+    android:background="@drawable/widget_list_item_bg"
+    android:gravity="center_vertical">
+
+    <!-- Icon -->
+    <TextView
+        android:id="@+id/widget_list_item_icon"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:text="🎂"
+        android:textSize="24sp"
+        android:gravity="center"
+        android:background="@drawable/widget_icon_bg" />
+
+    <!-- Info -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:layout_marginStart="12dp">
+
+        <TextView
+            android:id="@+id/widget_list_item_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Event Name"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="#1C1B1F"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/widget_list_item_time"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="5 days left"
+            android:textSize="12sp"
+            android:textColor="#79747E" />
+
+    </LinearLayout>
+
+    <!-- Days Badge -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:background="@drawable/widget_badge_bg"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="6dp">
+
+        <TextView
+            android:id="@+id/widget_list_item_days"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="5"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#6750A4" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="days"
+            android:textSize="10sp"
+            android:textColor="#79747E" />
+
+    </LinearLayout>
+
+</LinearLayout>
+

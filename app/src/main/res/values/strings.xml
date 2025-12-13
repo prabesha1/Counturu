@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Counturu</string>
+
+    <!-- Widget Strings -->
+    <string name="widget_name">Countdown Widget</string>
+    <string name="widget_description">Shows countdown to your next upcoming event</string>
+    <string name="widget_small_name">Mini Countdown</string>
+    <string name="widget_small_description">Compact countdown showing days remaining</string>
+    <string name="widget_list_name">Events List</string>
+    <string name="widget_list_description">Shows your upcoming events in a list</string>
+</resources>
