@@ -14,6 +14,11 @@ navigationCompose = "2.7.7"
 lifecycleViewmodelCompose = "2.6.1"
 coilCompose = "2.5.0"
 workManager = "2.9.0"
+glanceAppwidget = "1.1.0"
+vico = "1.15.0"
+datastore = "1.1.1"
+material = "1.12.0"
+gson = "2.10.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -37,6 +42,13 @@ androidx_navigation_compose = { group = "androidx.navigation", name = "navigatio
 androidx_lifecycle_viewmodel_compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycleViewmodelCompose" }
 coil_compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coilCompose" }
 androidx_work_runtime_ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workManager" }
+# New dependencies for improvements
+glance_appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glanceAppwidget" }
+glance_material3 = { group = "androidx.glance", name = "glance-material3", version.ref = "glanceAppwidget" }
+vico_compose_m3 = { group = "com.patrykandpatrick.vico", name = "compose-m3", version.ref = "vico" }
+datastore_preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
+material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

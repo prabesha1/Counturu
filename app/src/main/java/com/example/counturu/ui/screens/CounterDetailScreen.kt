@@ -1,22 +1,24 @@
 package com.example.counturu.ui.screens
 
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateIntAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,6 +27,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -34,7 +37,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -95,24 +98,16 @@ fun CounterDetailScreen(
     val backgroundColor = if (counter.backgroundColor != null) {
         Color(counter.backgroundColor)
     } else {
-        MaterialTheme.colorScheme.background
+        MaterialTheme.colorScheme.primary
     }
 
-    val gradientBackground = if (counter.backgroundColor != null) {
-        Brush.verticalGradient(
-            colors = listOf(
-                Color(counter.backgroundColor).copy(alpha = 0.3f),
-                MaterialTheme.colorScheme.background
-            )
+    val gradientBackground = Brush.verticalGradient(
+        colors = listOf(
+            backgroundColor.copy(alpha = 0.4f),
+            backgroundColor.copy(alpha = 0.2f),
+            MaterialTheme.colorScheme.background
         )
-    } else {
-        Brush.verticalGradient(
-            colors = listOf(
-                MaterialTheme.colorScheme.background,
-                MaterialTheme.colorScheme.background
-            )
-        )
-    }
+    )
 
     LaunchedEffect(counter.targetDateTime) {
         while (true) {
@@ -121,14 +116,22 @@ fun CounterDetailScreen(
         }
     }
 
+    // Get navigation bar padding for proper insets handling
+    val navigationBarPadding = WindowInsets.navigationBars.asPaddingValues()
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(gradientBackground)
     ) {
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            contentPadding = PaddingValues(
+                bottom = navigationBarPadding.calculateBottomPadding() + 24.dp
+            )
         ) {
             // Top Bar
             item {
@@ -138,119 +141,38 @@ fun CounterDetailScreen(
                 )
             }
 
-            // Hero Icon and Title - Centered
+            // Hero Section - Icon and Title
             item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // Event Icon - Clickable to change
-                    Box(
-                        modifier = Modifier
-                            .size(120.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (counter.backgroundColor != null)
-                                    Color(counter.backgroundColor).copy(alpha = 0.2f)
-                                else
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                            )
-                            .clickable { showIconPicker = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (counter.imageUri != null) {
-                            AsyncImage(
-                                model = counter.imageUri,
-                                contentDescription = counter.title,
-                                modifier = Modifier
-                                    .size(120.dp)
-                                    .clip(CircleShape),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            Text(
-                                text = counter.icon,
-                                fontSize = 64.sp
-                            )
-                        }
-                    }
-
-                    // Tap to change hint
-                    Text(
-                        text = "Tap icon to change",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Event Title
-                    Text(
-                        text = counter.title,
-                        style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(horizontal = 24.dp)
-                    )
-
-                    // Favorite indicator
-                    if (counter.isFavorite) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Favorite,
-                                contentDescription = "Favorite",
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = "Favorite",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
-                    }
-
-                    // Target Date
-                    Spacer(modifier = Modifier.height(8.dp))
-                    val dateFormatter = remember { SimpleDateFormat("EEEE, MMM dd, yyyy • hh:mm a", Locale.getDefault()) }
-                    Text(
-                        text = dateFormatter.format(Date(counter.targetDateTime)),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-
-                    // Change Theme Button
-                    Spacer(modifier = Modifier.height(12.dp))
-                    TextButton(onClick = { showColorPicker = true }) {
-                        Text(
-                            text = "🎨 Change Theme Color",
-                            style = MaterialTheme.typography.labelMedium
-                        )
-                    }
-                }
+                HeroSection(
+                    counter = counter,
+                    backgroundColor = backgroundColor,
+                    onIconClick = { showIconPicker = true },
+                    onColorClick = { showColorPicker = true }
+                )
             }
 
-            // Countdown Card
+            // Main Countdown Card - Larger Numbers
             item {
-                CountdownCard(
+                MainCountdownCard(
                     timeRemaining = timeRemaining,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    accentColor = if (counter.backgroundColor != null) Color(counter.backgroundColor) else null
+                    accentColor = backgroundColor,
+                    modifier = Modifier.padding(horizontal = 16.dp)
                 )
             }
 
             // Progress Card
             item {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 ProgressCard(
+                    counter = counter,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            }
+
+            // Quick Stats
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+                QuickStatsSection(
                     counter = counter,
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
@@ -258,7 +180,7 @@ fun CounterDetailScreen(
 
             // Notes Section Header
             item {
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(20.dp))
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -267,7 +189,7 @@ fun CounterDetailScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Notes",
+                        text = "📝 Notes",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -323,7 +245,7 @@ fun CounterDetailScreen(
                 if (remarkText.isNotBlank()) {
                     val newRemarks = remarks + remarkText.trim()
                     remarks = newRemarks
-                    saveNotes(newRemarks) // Save to database
+                    saveNotes(newRemarks)
                     onAddRemark(remarkText.trim())
                     remarkText = ""
                     showRemarkDialog = false
@@ -359,76 +281,217 @@ private fun DetailTopBar(
     onEdit: () -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(onClick = onBack) {
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f))
+        ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back"
             )
         }
-        IconButton(onClick = onEdit) {
-            Icon(
-                imageVector = Icons.Filled.Edit,
-                contentDescription = "Edit"
+
+        Row {
+            IconButton(
+                onClick = { /* Share functionality */ },
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f))
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Share,
+                    contentDescription = "Share"
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            IconButton(
+                onClick = onEdit,
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f))
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Edit,
+                    contentDescription = "Edit"
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeroSection(
+    counter: Counter,
+    backgroundColor: Color,
+    onIconClick: () -> Unit,
+    onColorClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Event Icon - Clickable to change
+        Box(
+            modifier = Modifier
+                .size(140.dp)
+                .clip(CircleShape)
+                .background(backgroundColor.copy(alpha = 0.25f))
+                .clickable { onIconClick() },
+            contentAlignment = Alignment.Center
+        ) {
+            if (counter.imageUri != null) {
+                AsyncImage(
+                    model = counter.imageUri,
+                    contentDescription = counter.title,
+                    modifier = Modifier
+                        .size(140.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Text(
+                    text = counter.icon,
+                    fontSize = 72.sp
+                )
+            }
+        }
+
+        // Tap to change hint
+        Text(
+            text = "Tap to change icon",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            modifier = Modifier.padding(top = 8.dp)
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Event Title
+        Text(
+            text = counter.title,
+            style = MaterialTheme.typography.displaySmall,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 24.dp)
+        )
+
+        // Category tag
+        counter.category?.let { category ->
+            Spacer(modifier = Modifier.height(8.dp))
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = backgroundColor.copy(alpha = 0.2f)
+                )
+            ) {
+                Text(
+                    text = category,
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+
+        // Favorite indicator
+        if (counter.isFavorite) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Favorite,
+                    contentDescription = "Favorite",
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = "Favorite",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+
+        // Target Date
+        Spacer(modifier = Modifier.height(12.dp))
+        val dateFormatter = remember { SimpleDateFormat("EEEE, MMM dd, yyyy • hh:mm a", Locale.getDefault()) }
+        Text(
+            text = dateFormatter.format(Date(counter.targetDateTime)),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+
+        // Change Theme Button
+        Spacer(modifier = Modifier.height(12.dp))
+        TextButton(onClick = onColorClick) {
+            Text(
+                text = "🎨 Change Theme Color",
+                style = MaterialTheme.typography.labelMedium
             )
         }
     }
 }
 
-
 @Composable
-private fun CountdownCard(
+private fun MainCountdownCard(
     timeRemaining: TimeRemaining,
-    modifier: Modifier = Modifier,
-    accentColor: Color? = null
+    accentColor: Color,
+    modifier: Modifier = Modifier
 ) {
-    val containerColor = accentColor?.copy(alpha = 0.15f) ?: MaterialTheme.colorScheme.primaryContainer
-    val contentColor = accentColor ?: MaterialTheme.colorScheme.onPrimaryContainer
+    val containerColor = accentColor.copy(alpha = 0.15f)
 
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = containerColor
-        )
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(28.dp))
+            .background(containerColor)
+            .padding(vertical = 32.dp, horizontal = 16.dp),
+        contentAlignment = Alignment.Center
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(32.dp),
+            modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             Text(
-                text = if (timeRemaining.isExpired) "Event Completed" else "Time Remaining",
+                text = if (timeRemaining.isExpired) "🎉 Event Completed!" else "⏱️ Time Remaining",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium,
-                color = contentColor.copy(alpha = 0.8f)
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
             )
 
             if (timeRemaining.isExpired) {
                 Text(
-                    text = "🎉",
-                    fontSize = 72.sp
-                )
-                Text(
                     text = "Congratulations!",
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold,
-                    color = contentColor
+                    color = accentColor
                 )
             } else {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    TimeUnit(value = timeRemaining.days, label = "Days", accentColor = contentColor)
-                    TimeUnit(value = timeRemaining.hours, label = "Hours", accentColor = contentColor)
-                    TimeUnit(value = timeRemaining.minutes, label = "Min", accentColor = contentColor)
-                    TimeUnit(value = timeRemaining.seconds, label = "Sec", accentColor = contentColor)
+                    LargeTimeUnit(value = timeRemaining.days, label = "Days", accentColor = accentColor)
+                    LargeTimeUnit(value = timeRemaining.hours, label = "Hours", accentColor = accentColor)
+                    LargeTimeUnit(value = timeRemaining.minutes, label = "Min", accentColor = accentColor)
+                    LargeTimeUnit(value = timeRemaining.seconds, label = "Sec", accentColor = accentColor)
                 }
             }
         }
@@ -436,23 +499,14 @@ private fun CountdownCard(
 }
 
 @Composable
-private fun TimeUnit(
+private fun LargeTimeUnit(
     value: Long,
     label: String,
-    accentColor: Color = MaterialTheme.colorScheme.onPrimaryContainer
+    accentColor: Color
 ) {
-    val animatedValue by animateIntAsState(
-        targetValue = value.toInt(),
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
-        label = "time_value"
-    )
-
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            text = animatedValue.toString().padStart(2, '0'),
+            text = value.toString().padStart(2, '0'),
             fontSize = 48.sp,
             fontWeight = FontWeight.Bold,
             color = accentColor
@@ -462,8 +516,74 @@ private fun TimeUnit(
             text = label,
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.Medium,
-            color = accentColor.copy(alpha = 0.7f)
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
         )
+    }
+}
+
+@Composable
+private fun QuickStatsSection(
+    counter: Counter,
+    modifier: Modifier = Modifier
+) {
+    val now = System.currentTimeMillis()
+    val totalDuration = counter.targetDateTime - counter.createdAt
+    val remainingDuration = counter.targetDateTime - now
+    val daysPassed = ((now - counter.createdAt) / (1000 * 60 * 60 * 24)).coerceAtLeast(0)
+    val daysRemaining = (remainingDuration / (1000 * 60 * 60 * 24)).coerceAtLeast(0)
+
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        QuickStatCard(
+            emoji = "📅",
+            value = daysPassed.toString(),
+            label = "Days Passed",
+            modifier = Modifier.weight(1f)
+        )
+        QuickStatCard(
+            emoji = "⏳",
+            value = daysRemaining.toString(),
+            label = "Days Left",
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun QuickStatCard(
+    emoji: String,
+    value: String,
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(text = emoji, fontSize = 24.sp)
+            Text(
+                text = value,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 
@@ -479,10 +599,11 @@ private fun ProgressCard(
 
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
-        )
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             modifier = Modifier
@@ -496,7 +617,7 @@ private fun ProgressCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Progress",
+                    text = "📊 Progress",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -512,8 +633,8 @@ private fun ProgressCard(
                 progress = { progress },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(8.dp)
-                    .clip(RoundedCornerShape(4.dp)),
+                    .height(10.dp)
+                    .clip(RoundedCornerShape(5.dp)),
                 color = MaterialTheme.colorScheme.primary,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant
             )
@@ -562,7 +683,8 @@ private fun NoteCard(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -605,7 +727,8 @@ private fun EmptyNotesCard(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        )
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier
@@ -614,6 +737,7 @@ private fun EmptyNotesCard(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            Text(text = "📝", fontSize = 32.sp)
             Text(
                 text = "No notes yet",
                 style = MaterialTheme.typography.bodyLarge,
@@ -661,9 +785,14 @@ private fun AddNoteDialog(
                 minLines = 3,
                 maxLines = 5,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                )
             )
         },
-        shape = RoundedCornerShape(16.dp)
+        shape = RoundedCornerShape(20.dp)
     )
 }
+

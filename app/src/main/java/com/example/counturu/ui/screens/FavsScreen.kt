@@ -2,10 +2,8 @@ package com.example.counturu.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -15,11 +13,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -28,10 +30,11 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,8 +43,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -52,8 +54,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -74,10 +74,17 @@ fun FavsScreen(
     onCounterClick: (Counter) -> Unit
 ) {
     val favoriteCounters by viewModel.favoriteCounters.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
+    var searchQuery by remember { mutableStateOf("") }
 
     // Sort favorites: upcoming first, then by date
-    val sortedFavorites = remember(favoriteCounters) {
-        favoriteCounters.sortedBy { it.targetDateTime }
+    val sortedFavorites = remember(favoriteCounters, searchQuery) {
+        favoriteCounters
+            .filter {
+                if (searchQuery.isBlank()) true
+                else it.title.contains(searchQuery, ignoreCase = true)
+            }
+            .sortedBy { it.targetDateTime }
     }
 
     // Get the next upcoming favorite
@@ -85,133 +92,241 @@ fun FavsScreen(
         it.targetDateTime > System.currentTimeMillis()
     }
 
+    // Get navigation bar padding
+    val navigationBarPadding = WindowInsets.navigationBars.asPaddingValues()
+
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Filled.Favorite,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(28.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Favorites",
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0), // We handle insets manually
+        bottomBar = {
+            FavsSearchBar(
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it },
+                modifier = Modifier.padding(bottom = navigationBarPadding.calculateBottomPadding())
             )
         }
-    ) { paddingValues ->
-        if (favoriteCounters.isEmpty()) {
-            // Empty State
-            EmptyFavoritesState(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentPadding = PaddingValues(bottom = 16.dp)
-            ) {
-                // Stats Header
-                item {
-                    FavoritesStatsCard(
-                        totalFavorites = favoriteCounters.size,
-                        upcomingCount = sortedFavorites.count { it.targetDateTime > System.currentTimeMillis() },
-                        completedCount = sortedFavorites.count { it.targetDateTime <= System.currentTimeMillis() }
-                    )
-                }
-
-                // Next Upcoming Highlight
-                nextUpcoming?.let { counter ->
+    ) { innerPadding ->
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = { viewModel.refresh() },
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            if (favoriteCounters.isEmpty()) {
+                // Empty State
+                EmptyFavoritesState(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 16.dp)
+                ) {
+                    // Header with status bar padding
                     item {
-                        Text(
-                            text = "Next Upcoming",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                        )
-                        FeaturedFavoriteCard(
-                            counter = counter,
-                            onClick = { onCounterClick(counter) },
-                            onRemoveFavorite = { viewModel.toggleFavorite(counter) }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .statusBarsPadding()
+                                .padding(horizontal = 16.dp, vertical = 16.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Favorite,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = "Favorites",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "${favoriteCounters.size} saved",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    // Stats Header
+                    item {
+                        FavoritesStatsCard(
+                            totalFavorites = favoriteCounters.size,
+                            upcomingCount = sortedFavorites.count { it.targetDateTime > System.currentTimeMillis() },
+                            completedCount = sortedFavorites.count { it.targetDateTime <= System.currentTimeMillis() }
                         )
                     }
-                }
 
-                // Quick Access Row
-                if (sortedFavorites.size > 1) {
+                    // Next Upcoming Highlight
+                    nextUpcoming?.let { counter ->
+                        item {
+                            Text(
+                                text = "⭐ Next Upcoming",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                            FeaturedFavoriteCard(
+                                counter = counter,
+                                onClick = { onCounterClick(counter) },
+                                onRemoveFavorite = { viewModel.toggleFavorite(counter) }
+                            )
+                        }
+                    }
+
+                    // Quick Access Row
+                    if (sortedFavorites.size > 1) {
+                        item {
+                            Text(
+                                text = "Quick Access",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                contentPadding = PaddingValues(horizontal = 16.dp)
+                            ) {
+                                items(
+                                    items = sortedFavorites.take(5),
+                                    key = { it.id }
+                                ) { counter ->
+                                    QuickAccessCard(
+                                        counter = counter,
+                                        onClick = { onCounterClick(counter) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // All Favorites Section
                     item {
+                        Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = "Quick Access",
+                            text = "All Favorites (${sortedFavorites.size})",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         )
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            contentPadding = PaddingValues(horizontal = 16.dp)
-                        ) {
-                            items(
-                                items = sortedFavorites.take(5),
-                                key = { it.id }
-                            ) { counter ->
-                                QuickAccessCard(
+                    }
+
+                    if (sortedFavorites.isEmpty() && searchQuery.isNotBlank()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "No favorites match \"$searchQuery\"",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    } else {
+                        itemsIndexed(
+                            items = sortedFavorites,
+                            key = { _, counter -> counter.id }
+                        ) { index, counter ->
+                            AnimatedVisibility(
+                                visible = true,
+                                enter = fadeIn() + slideInVertically(
+                                    initialOffsetY = { it / 2 },
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                        stiffness = Spring.StiffnessLow
+                                    )
+                                )
+                            ) {
+                                FavoriteListItem(
                                     counter = counter,
-                                    onClick = { onCounterClick(counter) }
+                                    index = index + 1,
+                                    onClick = { onCounterClick(counter) },
+                                    onRemoveFavorite = { viewModel.toggleFavorite(counter) },
+                                    onDelete = { viewModel.deleteCounter(counter) }
                                 )
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+}
 
-                // All Favorites Section
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "All Favorites (${favoriteCounters.size})",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
-                }
+@Composable
+private fun FavsSearchBar(
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Search,
+                contentDescription = "Search",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
 
-                itemsIndexed(
-                    items = sortedFavorites,
-                    key = { _, counter -> counter.id }
-                ) { index, counter ->
-                    AnimatedVisibility(
-                        visible = true,
-                        enter = fadeIn() + slideInVertically(
-                            initialOffsetY = { it / 2 },
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioMediumBouncy,
-                                stiffness = Spring.StiffnessLow
+            androidx.compose.foundation.text.BasicTextField(
+                value = searchQuery,
+                onValueChange = onSearchQueryChange,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(
+                    color = MaterialTheme.colorScheme.onSurface
+                ),
+                singleLine = true,
+                decorationBox = { innerTextField ->
+                    Box {
+                        if (searchQuery.isEmpty()) {
+                            Text(
+                                text = "Search favorites...",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                        )
-                    ) {
-                        FavoriteListItem(
-                            counter = counter,
-                            index = index + 1,
-                            onClick = { onCounterClick(counter) },
-                            onRemoveFavorite = { viewModel.toggleFavorite(counter) },
-                            onDelete = { viewModel.deleteCounter(counter) }
-                        )
+                        }
+                        innerTextField()
                     }
                 }
+            )
 
-                item {
-                    Spacer(modifier = Modifier.height(80.dp))
+            AnimatedVisibility(visible = searchQuery.isNotEmpty()) {
+                IconButton(
+                    onClick = { onSearchQueryChange("") },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Clear,
+                        contentDescription = "Clear",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
@@ -252,41 +367,59 @@ private fun FavoritesStatsCard(
     upcomingCount: Int,
     completedCount: Int
 ) {
-    Card(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
-        )
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            StatItem(value = totalFavorites.toString(), label = "Total")
-            StatItem(value = upcomingCount.toString(), label = "Upcoming")
-            StatItem(value = completedCount.toString(), label = "Completed")
-        }
+        StatItemCard(
+            value = totalFavorites.toString(),
+            label = "Total",
+            emoji = "⭐",
+            modifier = Modifier.weight(1f)
+        )
+        StatItemCard(
+            value = upcomingCount.toString(),
+            label = "Upcoming",
+            emoji = "⏳",
+            modifier = Modifier.weight(1f)
+        )
+        StatItemCard(
+            value = completedCount.toString(),
+            label = "Completed",
+            emoji = "✅",
+            modifier = Modifier.weight(1f)
+        )
     }
 }
 
 @Composable
-private fun StatItem(value: String, label: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+private fun StatItemCard(
+    value: String,
+    label: String,
+    emoji: String,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .padding(vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(text = emoji, fontSize = 20.sp)
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = value,
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onPrimaryContainer
+            color = MaterialTheme.colorScheme.onSurface
         )
         Text(
             text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -312,15 +445,13 @@ private fun FeaturedFavoriteCard(
         MaterialTheme.colorScheme.secondaryContainer
     }
 
-    Card(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
-            .clickable { onClick() },
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = backgroundColor.copy(alpha = 0.3f)
-        )
+            .clip(RoundedCornerShape(24.dp))
+            .background(backgroundColor.copy(alpha = 0.3f))
+            .clickable { onClick() }
     ) {
         Column(
             modifier = Modifier.padding(20.dp)
@@ -336,7 +467,7 @@ private fun FeaturedFavoriteCard(
                         modifier = Modifier
                             .size(56.dp)
                             .clip(CircleShape)
-                            .background(backgroundColor.copy(alpha = 0.3f)),
+                            .background(backgroundColor.copy(alpha = 0.2f)),
                         contentAlignment = Alignment.Center
                     ) {
                         if (counter.imageUri != null) {
@@ -408,8 +539,10 @@ private fun CountdownUnit(value: Long, label: String) {
         Text(
             text = value.toString().padStart(2, '0'),
             style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
         )
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
@@ -429,14 +562,12 @@ private fun QuickAccessCard(
         MaterialTheme.colorScheme.surfaceVariant
     }
 
-    Card(
+    Box(
         modifier = Modifier
             .size(100.dp)
-            .clickable { onClick() },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = backgroundColor.copy(alpha = 0.3f)
-        )
+            .clip(RoundedCornerShape(16.dp))
+            .background(backgroundColor.copy(alpha = 0.3f))
+            .clickable { onClick() }
     ) {
         Column(
             modifier = Modifier
@@ -475,16 +606,20 @@ private fun FavoriteListItem(
         }
     }
 
+    val bgColor = if (counter.backgroundColor != null) {
+        Color(counter.backgroundColor).copy(alpha = 0.1f)
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
             .clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        colors = CardDefaults.cardColors(containerColor = bgColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -532,7 +667,7 @@ private fun FavoriteListItem(
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = if (timeRemaining.isExpired)
-                        MaterialTheme.colorScheme.error
+                        MaterialTheme.colorScheme.primary
                     else
                         MaterialTheme.colorScheme.onSurfaceVariant
                 )

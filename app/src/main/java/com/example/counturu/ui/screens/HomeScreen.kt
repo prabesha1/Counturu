@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,11 +18,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -33,6 +39,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.DateRange
@@ -46,36 +53,43 @@ import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.counturu.data.Counter
+import com.example.counturu.data.CounterCategory
 import com.example.counturu.ui.components.CreateCounterDialog
 import com.example.counturu.utils.calculateTimeRemaining
 import com.example.counturu.viewmodel.CounterViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 enum class CounterFilter {
     ALL, UPCOMING, TODAY, THIS_WEEK, COMPLETED
@@ -88,12 +102,15 @@ fun HomeScreen(
     onCounterClick: (Counter) -> Unit
 ) {
     val allCounters by viewModel.allCounters.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf(CounterFilter.ALL) }
+    var selectedCategory by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     // Filter and search logic
-    val filteredCounters by remember(allCounters, searchQuery, selectedFilter) {
+    val filteredCounters by remember(allCounters, searchQuery, selectedFilter, selectedCategory) {
         derivedStateOf {
             val now = System.currentTimeMillis()
             val todayEnd = now + (24 * 60 * 60 * 1000)
@@ -103,6 +120,10 @@ fun HomeScreen(
                 .filter { counter ->
                     if (searchQuery.isBlank()) true
                     else counter.title.contains(searchQuery, ignoreCase = true)
+                }
+                .filter { counter ->
+                    if (selectedCategory == null) true
+                    else counter.category == selectedCategory
                 }
                 .filter { counter ->
                     when (selectedFilter) {
@@ -122,143 +143,178 @@ fun HomeScreen(
     val completedCount = allCounters.count { it.targetDateTime <= System.currentTimeMillis() }
     val favoriteCount = allCounters.count { it.isFavorite }
 
+    // Categories with counts
+    val categoryCounts = remember(allCounters) {
+        allCounters.groupBy { it.category ?: "Other" }.mapValues { it.value.size }
+    }
+
     // Next upcoming counter
     val nextUpcoming = allCounters
         .filter { it.targetDateTime > System.currentTimeMillis() }
         .minByOrNull { it.targetDateTime }
 
+    // Get navigation bar padding
+    val navigationBarPadding = WindowInsets.navigationBars.asPaddingValues()
+
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "Counturu",
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
-            )
-        },
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0), // We handle insets manually
         bottomBar = {
             BottomSearchBar(
                 searchQuery = searchQuery,
                 onSearchQueryChange = { searchQuery = it },
-                onCreateClick = { showCreateDialog = true }
+                onCreateClick = { showCreateDialog = true },
+                modifier = Modifier.padding(bottom = navigationBarPadding.calculateBottomPadding())
             )
         }
-    ) { paddingValues ->
-        if (allCounters.isEmpty()) {
-            EmptyHomeState(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                onCreateClick = { showCreateDialog = true }
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentPadding = PaddingValues(bottom = 16.dp)
-            ) {
-
-                // Quick Stats Row
-                item {
-                    QuickStatsRow(
-                        total = allCounters.size,
-                        upcoming = upcomingCount,
-                        completed = completedCount,
-                        favorites = favoriteCount
-                    )
-                }
-
-                // Next Upcoming Highlight (if exists)
-                nextUpcoming?.let { counter ->
+    ) { innerPadding ->
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = { viewModel.refresh() },
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            if (allCounters.isEmpty()) {
+                EmptyHomeState(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding(),
+                    onCreateClick = { showCreateDialog = true }
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 16.dp)
+                ) {
+                    // Header with status bar padding
                     item {
-                        Text(
-                            text = "⚡ Coming Up Next",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
-                        )
-                        NextUpcomingCard(
-                            counter = counter,
-                            onClick = { onCounterClick(counter) }
-                        )
-                    }
-                }
-
-                // Filter Chips
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    FilterChipsRow(
-                        selectedFilter = selectedFilter,
-                        onFilterSelected = { selectedFilter = it },
-                        counters = allCounters
-                    )
-                }
-
-                // Section Header
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = when (selectedFilter) {
-                                CounterFilter.ALL -> "All Counters"
-                                CounterFilter.UPCOMING -> "Upcoming"
-                                CounterFilter.TODAY -> "Today"
-                                CounterFilter.THIS_WEEK -> "This Week"
-                                CounterFilter.COMPLETED -> "Completed"
-                            },
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "${filteredCounters.size} items",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                // Counter List
-                if (filteredCounters.isEmpty()) {
-                    item {
-                        Box(
+                        Column(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(32.dp),
-                            contentAlignment = Alignment.Center
+                                .statusBarsPadding()
+                                .padding(horizontal = 16.dp, vertical = 16.dp)
                         ) {
                             Text(
-                                text = if (searchQuery.isNotEmpty())
-                                    "No counters match \"$searchQuery\""
-                                else
-                                    "No counters in this category",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center
+                                text = "Counturu",
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.headlineMedium
+                            )
+                            Text(
+                                text = "${allCounters.size} counters",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
-                } else {
-                    items(
-                        items = filteredCounters,
-                        key = { it.id }
-                    ) { counter ->
-                        CounterListItem(
-                            counter = counter,
-                            onClick = { onCounterClick(counter) },
-                            onFavoriteClick = { viewModel.toggleFavorite(counter) },
-                            onDeleteClick = { viewModel.deleteCounter(counter) }
+
+                    // Quick Stats Row
+                    item {
+                        QuickStatsRow(
+                            total = allCounters.size,
+                                upcoming = upcomingCount,
+                                completed = completedCount,
+                                favorites = favoriteCount
+                            )
+                        }
+
+                    // Category Chips
+                    if (categoryCounts.isNotEmpty()) {
+                        item {
+                            CategoryChipsRow(
+                                categories = categoryCounts,
+                                selectedCategory = selectedCategory,
+                                onCategorySelected = { selectedCategory = it }
+                            )
+                        }
+                    }
+
+                    // Next Upcoming Highlight (if exists)
+                    nextUpcoming?.let { counter ->
+                        item {
+                            Text(
+                                text = "⚡ Coming Up Next",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
+                            )
+                            NextUpcomingCard(
+                                counter = counter,
+                                onClick = { onCounterClick(counter) }
+                            )
+                        }
+                    }
+
+                    // Filter Chips
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        FilterChipsRow(
+                            selectedFilter = selectedFilter,
+                            onFilterSelected = { selectedFilter = it },
+                            counters = allCounters
                         )
+                    }
+
+                    // Section Header
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = when (selectedFilter) {
+                                    CounterFilter.ALL -> "All Counters"
+                                    CounterFilter.UPCOMING -> "Upcoming"
+                                    CounterFilter.TODAY -> "Today"
+                                    CounterFilter.THIS_WEEK -> "This Week"
+                                    CounterFilter.COMPLETED -> "Completed"
+                                },
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "${filteredCounters.size} items",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    // Counter List
+                    if (filteredCounters.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (searchQuery.isNotEmpty())
+                                        "No counters match \"$searchQuery\""
+                                    else
+                                        "No counters in this category",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    } else {
+                        items(
+                            items = filteredCounters,
+                            key = { it.id }
+                        ) { counter ->
+                            SwipeableCounterItem(
+                                counter = counter,
+                                onClick = { onCounterClick(counter) },
+                                onFavoriteClick = { viewModel.toggleFavorite(counter) },
+                                onDeleteClick = { viewModel.deleteCounter(counter) },
+                                onArchiveClick = { viewModel.archiveCounter(counter) }
+                            )
+                        }
                     }
                 }
             }
@@ -269,7 +325,7 @@ fun HomeScreen(
     CreateCounterDialog(
         isVisible = showCreateDialog,
         onDismiss = { showCreateDialog = false },
-        onSave = { title, targetDateTime, imageUri, hasReminder, isFavorite, icon, backgroundColor ->
+        onSave = { title, targetDateTime, imageUri, hasReminder, isFavorite, icon, backgroundColor, category ->
             viewModel.insertCounter(
                 Counter(
                     title = title,
@@ -278,11 +334,52 @@ fun HomeScreen(
                     hasReminder = hasReminder,
                     isFavorite = isFavorite,
                     icon = icon,
-                    backgroundColor = backgroundColor
+                    backgroundColor = backgroundColor,
+                    category = category
                 )
             )
         }
     )
+}
+
+@Composable
+private fun CategoryChipsRow(
+    categories: Map<String, Int>,
+    selectedCategory: String?,
+    onCategorySelected: (String?) -> Unit
+) {
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        item {
+            FilterChip(
+                selected = selectedCategory == null,
+                onClick = { onCategorySelected(null) },
+                label = { Text("All") },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            )
+        }
+        categories.forEach { (category, count) ->
+            item {
+                val categoryEnum = try {
+                    CounterCategory.valueOf(category.uppercase())
+                } catch (e: Exception) {
+                    CounterCategory.OTHER
+                }
+                FilterChip(
+                    selected = selectedCategory == category,
+                    onClick = { onCategorySelected(if (selectedCategory == category) null else category) },
+                    label = { Text("${categoryEnum.icon} $category ($count)") },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer
+                    )
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -484,6 +581,13 @@ private fun NextUpcomingCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                if (counter.category != null) {
+                    Text(
+                        text = counter.category,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -531,10 +635,6 @@ private fun FilterChipsRow(
     onFilterSelected: (CounterFilter) -> Unit,
     counters: List<Counter>
 ) {
-    val now = System.currentTimeMillis()
-    val todayEnd = now + (24 * 60 * 60 * 1000)
-    val weekEnd = now + (7 * 24 * 60 * 60 * 1000)
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -571,6 +671,80 @@ private fun FilterChipsRow(
             label = { Text("Completed") }
         )
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeableCounterItem(
+    counter: Counter,
+    onClick: () -> Unit,
+    onFavoriteClick: () -> Unit,
+    onDeleteClick: () -> Unit,
+    onArchiveClick: () -> Unit
+) {
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { dismissValue ->
+            when (dismissValue) {
+                SwipeToDismissBoxValue.EndToStart -> {
+                    onDeleteClick()
+                    true
+                }
+                SwipeToDismissBoxValue.StartToEnd -> {
+                    onArchiveClick()
+                    true
+                }
+                SwipeToDismissBoxValue.Settled -> false
+            }
+        }
+    )
+
+    SwipeToDismissBox(
+        state = dismissState,
+        backgroundContent = {
+            val direction = dismissState.dismissDirection
+            val color = when (direction) {
+                SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.error
+                SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.tertiary
+                else -> Color.Transparent
+            }
+            val icon = when (direction) {
+                SwipeToDismissBoxValue.EndToStart -> Icons.Filled.Delete
+                SwipeToDismissBoxValue.StartToEnd -> Icons.Filled.KeyboardArrowDown
+                else -> null
+            }
+            val alignment = when (direction) {
+                SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+                SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                else -> Alignment.Center
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(color),
+                contentAlignment = alignment
+            ) {
+                icon?.let {
+                    Icon(
+                        imageVector = it,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.padding(horizontal = 20.dp)
+                    )
+                }
+            }
+        },
+        content = {
+            CounterListItem(
+                counter = counter,
+                onClick = onClick,
+                onFavoriteClick = onFavoriteClick,
+                onDeleteClick = onDeleteClick
+            )
+        }
+    )
 }
 
 @Composable
@@ -671,6 +845,15 @@ private fun CounterListItem(
                             MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                // Category tag
+                counter.category?.let { category ->
+                    Text(
+                        text = category,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
             }
 
             // Actions
@@ -705,10 +888,11 @@ private fun CounterListItem(
 private fun BottomSearchBar(
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
-    onCreateClick: () -> Unit
+    onCreateClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 12.dp),
         shape = RoundedCornerShape(28.dp),

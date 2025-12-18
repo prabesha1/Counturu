@@ -67,6 +67,22 @@ dependencies {
     // WorkManager
     implementation(libs.androidx.work.runtime.ktx)
 
+    // Jetpack Glance for modern widgets
+    implementation(libs.glance.appwidget)
+    implementation(libs.glance.material3)
+
+    // Vico Charts for analytics
+    implementation(libs.vico.compose.m3)
+
+    // DataStore for preferences
+    implementation(libs.datastore.preferences)
+
+    // Material Design
+    implementation(libs.material)
+
+    // Gson for JSON serialization
+    implementation(libs.gson)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

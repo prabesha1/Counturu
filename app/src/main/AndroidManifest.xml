@@ -4,6 +4,7 @@
 
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:allowBackup="true"
@@ -70,6 +71,32 @@
             android:name=".widget.CounterListWidgetService"
             android:exported="false"
             android:permission="android.permission.BIND_REMOTEVIEWS" />
+
+        <!-- Glance Counter Widget -->
+        <receiver
+            android:name=".widget.CounterGlanceWidgetReceiver"
+            android:exported="true"
+            android:label="Counturu Modern">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/glance_widget_info" />
+        </receiver>
+
+        <!-- Glance Multi Counter Widget -->
+        <receiver
+            android:name=".widget.MultiCounterGlanceWidgetReceiver"
+            android:exported="true"
+            android:label="Counturu List">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/glance_multi_widget_info" />
+        </receiver>
     </application>
 
 </manifest>
